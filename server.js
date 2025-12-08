@@ -13,12 +13,20 @@ app.use(cors());
 app.use(express.json());
 
 // Configuração do Banco de Dados SQLite
-const dbPath = path.resolve(__dirname, 'database.db');
+// IMPORTANTE: Salvamos na pasta 'data' para facilitar a montagem de volume no Docker
+const dataDir = path.join(__dirname, 'data');
+
+if (!fs.existsSync(dataDir)){
+    fs.mkdirSync(dataDir);
+}
+
+const dbPath = path.join(dataDir, 'database.db');
+
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Erro ao conectar ao banco de dados:', err.message);
   } else {
-    console.log('Conectado ao banco de dados SQLite.');
+    console.log('Conectado ao banco de dados SQLite em:', dbPath);
     initDb();
   }
 });
