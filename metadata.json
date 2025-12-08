@@ -1,0 +1,5 @@
+{
+  "name": "Gestão Municipal de Indicadores",
+  "description": "Painel interativo para gestão e visualização de indicadores municipais em diversas áreas como Saúde, Educação e Infraestrutura.",
+  "requestFramePermissions": []
+}
