@@ -33,7 +33,9 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="label" />
             <YAxis />
-            <Tooltip />
+            <Tooltip 
+              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+            />
             <Legend />
             <Line type="monotone" dataKey="value" name="Valor" stroke={color || "#3b82f6"} activeDot={{ r: 8 }} />
           </LineChart>
@@ -45,8 +47,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
               data={data}
               cx="50%"
               cy="50%"
-              labelLine={false}
-              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              labelLine={true}
+              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
               outerRadius={80}
               fill="#8884d8"
               dataKey="value"
@@ -56,7 +58,9 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip />
+            <Tooltip 
+              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+            />
             <Legend />
           </PieChart>
         );
@@ -67,7 +71,10 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="label" />
             <YAxis />
-            <Tooltip cursor={{ fill: 'transparent' }} />
+            <Tooltip 
+              cursor={{ fill: '#f3f4f6' }}
+              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+            />
             <Legend />
             <Bar dataKey="value" name="Quantidade" fill={color || "#3b82f6"} radius={[4, 4, 0, 0]} />
           </BarChart>
@@ -76,11 +83,13 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
   };
 
   return (
-    <div className="w-full h-80 bg-white p-4 rounded-lg border border-gray-100">
+    <div className="w-full h-80 bg-white p-4 rounded-lg border border-gray-100 flex flex-col">
       <h3 className="text-center font-semibold text-gray-800 mb-4">{title}</h3>
-      <ResponsiveContainer width="100%" height="100%">
-        {renderChart()}
-      </ResponsiveContainer>
+      <div className="flex-1 w-full min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          {renderChart()}
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 };

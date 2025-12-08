@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, LayoutDashboard, Lock, MessageCircle } from 'lucide-react';
-import { TOPICS, INITIAL_POSTS } from './constants';
+import { ArrowLeft, LayoutDashboard, Lock, MessageCircle, AlertCircle } from 'lucide-react';
+import { TOPICS } from './constants';
 import { Post, TopicId, ChartConfig } from './types';
 import { TopicCard } from './components/TopicCard';
 import { ChartRenderer } from './components/ChartRenderer';
@@ -10,45 +11,82 @@ import { AdminPanel } from './components/AdminPanel';
 // --- Main App Component ---
 
 function App() {
-  // Inicializa o estado buscando do LocalStorage, ou usa os posts iniciais se estiver vazio
-  const [posts, setPosts] = useState<Post[]>(() => {
-    const savedPosts = localStorage.getItem('goncalinho_posts');
-    if (savedPosts) {
-      try {
-        return JSON.parse(savedPosts);
-      } catch (e) {
-        console.error("Erro ao ler dados salvos", e);
-        return INITIAL_POSTS;
-      }
-    }
-    return INITIAL_POSTS;
-  });
-
+  const [posts, setPosts] = useState<Post[]>([]);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Efeito para salvar no LocalStorage sempre que 'posts' mudar (Adicionar ou Excluir)
+  // Busca os dados do servidor (Banco de Dados SQLite)
+  const fetchPosts = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/posts');
+      if (!response.ok) {
+        throw new Error('Falha ao buscar dados do servidor.');
+      }
+      const json = await response.json();
+      setPosts(json.data || []);
+      setError(null);
+    } catch (err) {
+      console.error("Erro ao carregar posts:", err);
+      // Fallback silencioso ou mensagem de erro amigável se o backend não estiver rodando (dev mode frontend only)
+      setError("Não foi possível conectar ao banco de dados. Verifique se o servidor está rodando.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem('goncalinho_posts', JSON.stringify(posts));
-  }, [posts]);
+    fetchPosts();
+  }, []);
 
-  const handleAddPost = (topicId: TopicId, description: string, chartConfig: ChartConfig) => {
+  const handleAddPost = async (topicId: TopicId, description: string, chartConfig: ChartConfig) => {
     const newPost: Post = {
       id: Date.now().toString(),
       topicId,
       description,
-      chartConfig: {
-        ...chartConfig,
-      },
+      chartConfig,
       createdAt: Date.now(),
     };
-    setPosts(prevPosts => [newPost, ...prevPosts]);
+
+    try {
+      const response = await fetch('/api/posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newPost),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao salvar no banco de dados.');
+      }
+
+      // Atualiza a lista localmente após sucesso
+      setPosts(prevPosts => [newPost, ...prevPosts]);
+      return true;
+    } catch (err) {
+      alert("Erro ao salvar gráfico: " + err);
+      return false;
+    }
   };
 
-  const handleDeletePost = (postId: string) => {
-    setPosts(currentPosts => {
-      const updatedPosts = currentPosts.filter(p => p.id !== postId);
-      return updatedPosts;
-    });
+  const handleDeletePost = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/posts/${postId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao excluir do banco de dados.');
+      }
+
+      // Atualiza a lista localmente
+      const idToDelete = String(postId);
+      setPosts(currentPosts => currentPosts.filter(p => String(p.id) !== idToDelete));
+    } catch (err) {
+      alert("Erro ao excluir: " + err);
+    }
   };
 
   return (
@@ -80,11 +118,18 @@ function App() {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2">
+              <AlertCircle size={20} />
+              {error}
+            </div>
+          )}
+
           <Routes>
-            <Route path="/" element={<DashboardView />} />
+            <Route path="/" element={<DashboardView isLoading={isLoading} />} />
             <Route 
               path="/topic/:topicId" 
-              element={<TopicDetailView posts={posts} />} 
+              element={<TopicDetailView posts={posts} isLoading={isLoading} />} 
             />
           </Routes>
         </main>
@@ -103,7 +148,7 @@ function App() {
 
 // --- Views ---
 
-const DashboardView = () => {
+const DashboardView = ({ isLoading }: { isLoading: boolean }) => {
   const navigate = useNavigate();
 
   return (
@@ -142,24 +187,31 @@ const DashboardView = () => {
         </p>
       </div>
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {TOPICS.map((topic) => (
-          <TopicCard 
-            key={topic.id} 
-            topic={topic} 
-            onClick={(id) => navigate(`/topic/${id}`)} 
-          />
-        ))}
-      </div>
+      {isLoading ? (
+         <div className="flex justify-center py-20">
+           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div>
+         </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {TOPICS.map((topic) => (
+            <TopicCard 
+              key={topic.id} 
+              topic={topic} 
+              onClick={(id) => navigate(`/topic/${id}`)} 
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
 
 interface TopicDetailViewProps {
   posts: Post[];
+  isLoading: boolean;
 }
 
-const TopicDetailView: React.FC<TopicDetailViewProps> = ({ posts }) => {
+const TopicDetailView: React.FC<TopicDetailViewProps> = ({ posts, isLoading }) => {
   const { topicId } = useParams<{ topicId: string }>();
   
   const topic = TOPICS.find(t => t.id === topicId);
@@ -197,39 +249,45 @@ const TopicDetailView: React.FC<TopicDetailViewProps> = ({ posts }) => {
       </div>
 
       {/* Feed */}
-      <div className="space-y-8">
-        {topicPosts.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-300">
-            <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-              <LayoutDashboard className="text-gray-400" size={32} />
+      {isLoading ? (
+        <div className="flex justify-center py-20">
+           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {topicPosts.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-300">
+              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <LayoutDashboard className="text-gray-400" size={32} />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900">Nenhum dado publicado</h3>
+              <p className="text-gray-500 max-w-sm mx-auto mt-1">
+                Novos indicadores serão publicados em breve.
+              </p>
             </div>
-            <h3 className="text-lg font-medium text-gray-900">Nenhum dado publicado</h3>
-            <p className="text-gray-500 max-w-sm mx-auto mt-1">
-              Novos indicadores serão publicados em breve.
-            </p>
-          </div>
-        ) : (
-          topicPosts.map((post) => (
-            <div key={post.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow duration-300">
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="text-sm text-gray-400">
-                    Publicado em {formatDate(post.createdAt)}
+          ) : (
+            topicPosts.map((post) => (
+              <div key={post.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow duration-300">
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="text-sm text-gray-400">
+                      Publicado em {formatDate(post.createdAt)}
+                    </div>
+                  </div>
+                  
+                  <p className="text-gray-700 mb-6 text-lg leading-relaxed">
+                    {post.description}
+                  </p>
+                  
+                  <div className="bg-slate-50 rounded-xl p-4 md:p-6 border border-slate-100">
+                    <ChartRenderer config={post.chartConfig} />
                   </div>
                 </div>
-                
-                <p className="text-gray-700 mb-6 text-lg leading-relaxed">
-                  {post.description}
-                </p>
-                
-                <div className="bg-slate-50 rounded-xl p-4 md:p-6 border border-slate-100">
-                  <ChartRenderer config={post.chartConfig} />
-                </div>
               </div>
-            </div>
-          ))
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 };

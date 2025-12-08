@@ -1,3 +1,4 @@
+
 import { TopicId, TopicDef, Post } from './types';
 
 export const TOPICS: TopicDef[] = [
@@ -59,45 +60,4 @@ export const TOPICS: TopicDef[] = [
   },
 ];
 
-export const INITIAL_POSTS: Post[] = [
-  {
-    id: '1',
-    topicId: TopicId.SAUDE,
-    createdAt: Date.now(),
-    description: 'Acompanhamento mensal dos casos notificados de Dengue no município.',
-    chartConfig: {
-      type: 'bar',
-      title: 'Casos de Dengue em São Gonçalo dos Campos (Jan-Nov 2025)',
-      data: [
-        { label: "Jan", value: 6 },
-        { label: "Fev", value: 1 },
-        { label: "Mar", value: 2 },
-        { label: "Abr", value: 1 },
-        { label: "Mai", value: 2 },
-        { label: "Jun", value: 4 },
-        { label: "Jul", value: 1 },
-        { label: "Ago", value: 1 },
-        { label: "Set", value: 2 },
-        { label: "Out", value: 1 },
-        { label: "Nov", value: 2 }
-      ],
-      color: '#10b981' // emerald-500
-    }
-  },
-  {
-    id: '2',
-    topicId: TopicId.FINANCAS,
-    createdAt: Date.now() - 100000,
-    description: 'Comparativo de arrecadação de impostos no primeiro trimestre.',
-    chartConfig: {
-      type: 'bar',
-      title: 'Arrecadação de IPTU (em Milhares de R$)',
-      data: [
-        { label: "Jan", value: 450 },
-        { label: "Fev", value: 320 },
-        { label: "Mar", value: 280 }
-      ],
-      color: '#059669' // emerald-600
-    }
-  }
-];
+export const INITIAL_POSTS: Post[] = [];

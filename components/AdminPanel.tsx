@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { X, Trash2, Plus, Lock, Palette, Check } from 'lucide-react';
+import { X, Trash2, Plus, Lock, Palette, Check, Database } from 'lucide-react';
 import { ChartConfig, Post, TopicId } from '../types';
 import { TOPICS } from '../constants';
 
@@ -7,7 +8,7 @@ interface AdminPanelProps {
   isOpen: boolean;
   onClose: () => void;
   posts: Post[];
-  onAddPost: (topicId: TopicId, description: string, chartConfig: ChartConfig) => void;
+  onAddPost: (topicId: TopicId, description: string, chartConfig: ChartConfig) => Promise<boolean | void>;
   onDeletePost: (postId: string) => void;
 }
 
@@ -38,7 +39,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onClose, 
   posts, 
   onAddPost, 
-  onDeletePost 
+  onDeletePost
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
@@ -51,6 +52,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [jsonInput, setJsonInput] = useState(DEFAULT_JSON_TEMPLATE);
   const [selectedColor, setSelectedColor] = useState('#0ea5e9');
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -64,9 +66,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setJsonError(null);
+    setIsSubmitting(true);
 
     try {
       let parsed = JSON.parse(jsonInput);
@@ -86,22 +89,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       // Apply selected color
       config.color = selectedColor;
 
-      onAddPost(selectedTopic, description, config);
+      const success = await onAddPost(selectedTopic, description, config);
       
-      // Reset form
-      setDescription('');
-      setJsonInput(DEFAULT_JSON_TEMPLATE);
-      alert('Gráfico adicionado com sucesso!');
-      setActiveTab('list'); // Switch to list view to see the new item
+      if (success !== false) {
+          // Reset form
+          setDescription('');
+          setJsonInput(DEFAULT_JSON_TEMPLATE);
+          alert('Gráfico adicionado ao Banco de Dados com sucesso!');
+          setActiveTab('list');
+      }
     } catch (err: any) {
       setJsonError(err.message || "Erro ao processar JSON.");
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
+    e.stopPropagation(); // Impede eventos indesejados
     // Explicitly confirm before deleting
     if (window.confirm('Tem certeza que deseja excluir este gráfico permanentemente?')) {
       onDeletePost(id);
@@ -276,10 +281,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div className="flex justify-end pt-4 pb-8">
                 <button
                   type="submit"
-                  className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                  disabled={isSubmitting}
+                  className={`px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 ${isSubmitting ? 'opacity-70 cursor-wait' : ''}`}
                 >
                   <Plus size={20} />
-                  Publicar Gráfico
+                  {isSubmitting ? 'Salvando...' : 'Publicar Gráfico'}
                 </button>
               </div>
             </form>
@@ -287,7 +293,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
           {/* TAB: LIST / DELETE */}
           {activeTab === 'list' && (
-            <div className="p-6 max-w-4xl mx-auto">
+            <div className="p-6 max-w-4xl mx-auto space-y-6">
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
+                <Database className="text-blue-600" />
+                <p className="text-blue-800 text-sm font-medium">
+                  Modo Banco de Dados Ativo: Todas as alterações aqui são salvas no servidor e visíveis para todos os usuários instantaneamente.
+                </p>
+              </div>
+
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -302,7 +316,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     {posts.length === 0 ? (
                       <tr>
                         <td colSpan={4} className="p-8 text-center text-gray-500">
-                          Nenhum gráfico cadastrado.
+                          Nenhum gráfico cadastrado no banco de dados.
                         </td>
                       </tr>
                     ) : (
@@ -325,7 +339,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               <button
                                 type="button"
                                 onClick={(e) => handleDelete(e, post.id)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-md text-sm font-medium transition-colors"
+                                className="inline-flex items-center gap-1 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-md text-sm font-medium transition-all shadow-sm"
                               >
                                 <Trash2 size={16} /> Excluir
                               </button>
