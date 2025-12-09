@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Plus, Lock, Palette, Check, Database, Type, Wifi, WifiOff, Pencil, RefreshCw, BarChart3, LineChart, PieChart, Code, Eye, Table } from 'lucide-react';
-import { ChartConfig, Post, TopicId, ExternalChartData } from '../types';
+import { X, Trash2, Plus, Lock, Palette, Database, Type, Wifi, WifiOff, Pencil, RefreshCw, BarChart3, LineChart, PieChart, Code, Eye, Table as TableIcon } from 'lucide-react';
+import { ChartConfig, Post, TopicId } from '../types';
 import { TOPICS } from '../constants';
 import { ChartRenderer } from './ChartRenderer';
 
@@ -74,7 +74,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     { label: 'Item C', 'Valor': 15 },
   ]);
 
-  if (!isOpen) return null;
+  // --- VISUAL BUILDER LOGIC ---
+
+  // Sync Visual Builder -> JSON Input
+  // Este useEffect deve estar aqui no topo, incondicionalmente
+  useEffect(() => {
+    if (editMode === 'visual') {
+      const config = {
+        type: builderType,
+        title: title || "Título do Gráfico",
+        color: selectedColor, // Sync color
+        data: builderRows.map(row => {
+          const cleanRow: any = { label: row.label };
+          builderSeries.forEach(s => {
+            cleanRow[s] = Number(row[s]) || 0;
+          });
+          return cleanRow;
+        })
+      };
+      
+      // Wrap in { chart: ... } standard
+      const finalJson = { chart: config };
+      setJsonInput(JSON.stringify(finalJson, null, 2));
+    }
+  }, [builderRows, builderSeries, builderType, title, selectedColor, editMode]);
+
+  // Removido o 'if (!isOpen) return null;' para evitar erro de Hooks.
+  // A visibilidade agora é controlada pelo componente pai (App.tsx).
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,30 +131,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       { label: 'Item C', 'Valor': 15 },
     ]);
   };
-
-  // --- VISUAL BUILDER LOGIC ---
-
-  // Sync Visual Builder -> JSON Input
-  useEffect(() => {
-    if (editMode === 'visual') {
-      const config = {
-        type: builderType,
-        title: title || "Título do Gráfico",
-        color: selectedColor, // Sync color
-        data: builderRows.map(row => {
-          const cleanRow: any = { label: row.label };
-          builderSeries.forEach(s => {
-            cleanRow[s] = Number(row[s]) || 0;
-          });
-          return cleanRow;
-        })
-      };
-      
-      // Wrap in { chart: ... } standard
-      const finalJson = { chart: config };
-      setJsonInput(JSON.stringify(finalJson, null, 2));
-    }
-  }, [builderRows, builderSeries, builderType, title, selectedColor, editMode]);
 
   const addRow = () => {
     const newRow: any = { label: 'Novo Item' };
@@ -165,8 +167,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
     setBuilderSeries(builderSeries.filter(s => s !== seriesName));
   };
-
-  // --- END VISUAL BUILDER LOGIC ---
 
   const handleEditClick = (post: Post) => {
     setEditingPostId(post.id);
@@ -508,7 +508,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         onClick={() => setEditMode('visual')}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold transition-all ${editMode === 'visual' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                       >
-                        <Table size={14} /> Construtor Visual
+                        <TableIcon size={14} /> Construtor Visual
                       </button>
                       <button
                         type="button"

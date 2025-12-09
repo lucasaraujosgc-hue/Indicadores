@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, LayoutDashboard, Lock, MessageCircle, AlertCircle, Maximize2, X } from 'lucide-react';
@@ -221,15 +222,17 @@ function App() {
           </Routes>
         </main>
 
-        <AdminPanel 
-          isOpen={isAdminOpen}
-          onClose={() => setIsAdminOpen(false)}
-          posts={posts}
-          onAddPost={handleAddPost}
-          onEditPost={handleEditPost}
-          onDeletePost={handleDeletePost}
-          usingServer={usingServer}
-        />
+        {isAdminOpen && (
+          <AdminPanel 
+            isOpen={isAdminOpen}
+            onClose={() => setIsAdminOpen(false)}
+            posts={posts}
+            onAddPost={handleAddPost}
+            onEditPost={handleEditPost}
+            onDeletePost={handleDeletePost}
+            usingServer={usingServer}
+          />
+        )}
       </div>
     </Router>
   );
