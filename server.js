@@ -86,6 +86,23 @@ app.post('/api/posts', (req, res) => {
   });
 });
 
+// Atualizar post (Edição)
+app.put('/api/posts/:id', (req, res) => {
+  const { topicId, description, chartConfig } = req.body;
+  const id = req.params.id;
+
+  const sql = `UPDATE posts SET topicId = ?, description = ?, chartConfig = ? WHERE id = ?`;
+  const params = [topicId, description, JSON.stringify(chartConfig), id];
+
+  db.run(sql, params, function(err) {
+    if (err) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    res.json({ message: 'Post atualizado com sucesso', changes: this.changes });
+  });
+});
+
 // Deletar post
 app.delete('/api/posts/:id', (req, res) => {
   const sql = 'DELETE FROM posts WHERE id = ?';

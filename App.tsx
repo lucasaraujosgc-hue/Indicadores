@@ -93,6 +93,43 @@ function App() {
     }
   };
 
+  const handleEditPost = async (postId: string, topicId: TopicId, description: string, chartConfig: ChartConfig) => {
+    if (usingServer) {
+      try {
+        const response = await fetch(`/api/posts/${postId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            topicId,
+            description,
+            chartConfig,
+          }),
+        });
+
+        if (!response.ok) throw new Error('Erro ao atualizar no servidor.');
+
+        setPosts(prevPosts => prevPosts.map(p => 
+          p.id === postId ? { ...p, topicId, description, chartConfig } : p
+        ));
+        return true;
+      } catch (err) {
+        console.error("Erro ao editar:", err);
+        alert("Erro ao salvar alterações no servidor.");
+        return false;
+      }
+    } else {
+      // Modo Offline / LocalStorage
+      const updatedPosts = posts.map(p => 
+        p.id === postId ? { ...p, topicId, description, chartConfig } : p
+      );
+      setPosts(updatedPosts);
+      localStorage.setItem('posts', JSON.stringify(updatedPosts));
+      return true;
+    }
+  };
+
   const handleDeletePost = async (postId: string) => {
     if (usingServer) {
       try {
@@ -189,6 +226,7 @@ function App() {
           onClose={() => setIsAdminOpen(false)}
           posts={posts}
           onAddPost={handleAddPost}
+          onEditPost={handleEditPost}
           onDeletePost={handleDeletePost}
           usingServer={usingServer}
         />
@@ -283,7 +321,7 @@ const TopicDetailView: React.FC<TopicDetailViewProps> = ({ posts, isLoading }) =
       {isLoading ? (
         <div className="flex justify-center py-20">
            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
-        </div>
+         </div>
       ) : (
         <>
           {topicPosts.length === 0 ? (

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Trash2, Plus, Lock, Palette, Check, Database, Type, Wifi, WifiOff } from 'lucide-react';
+import { X, Trash2, Plus, Lock, Palette, Check, Database, Type, Wifi, WifiOff, Pencil, RefreshCw } from 'lucide-react';
 import { ChartConfig, Post, TopicId } from '../types';
 import { TOPICS } from '../constants';
 
@@ -8,6 +8,7 @@ interface AdminPanelProps {
   onClose: () => void;
   posts: Post[];
   onAddPost: (topicId: TopicId, description: string, chartConfig: ChartConfig) => Promise<boolean | void>;
+  onEditPost: (postId: string, topicId: TopicId, description: string, chartConfig: ChartConfig) => Promise<boolean | void>;
   onDeletePost: (postId: string) => void;
   usingServer: boolean;
 }
@@ -39,6 +40,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onClose, 
   posts, 
   onAddPost, 
+  onEditPost,
   onDeletePost,
   usingServer
 }) => {
@@ -48,6 +50,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Form States
   const [activeTab, setActiveTab] = useState<'add' | 'list'>('add');
+  const [editingPostId, setEditingPostId] = useState<string | null>(null); // Se null, modo criar. Se string, modo editar.
+  
   const [selectedTopic, setSelectedTopic] = useState<TopicId>(TopicId.SAUDE);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -66,6 +70,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     } else {
       setAuthError(true);
     }
+  };
+
+  const resetForm = () => {
+    setEditingPostId(null);
+    setTitle('');
+    setDescription('');
+    setJsonInput(DEFAULT_JSON_TEMPLATE);
+    setSelectedColor('#0ea5e9');
+    setSelectedTopic(TopicId.SAUDE);
+    setJsonError(null);
+  };
+
+  const handleEditClick = (post: Post) => {
+    setEditingPostId(post.id);
+    setSelectedTopic(post.topicId);
+    setTitle(post.chartConfig.title);
+    setDescription(post.description);
+    setSelectedColor(post.chartConfig.color || '#0ea5e9');
+    
+    // Reconstrói o JSON para o usuário editar, mantendo a estrutura
+    const jsonToDisplay = {
+      chart: {
+        type: post.chartConfig.type,
+        title: post.chartConfig.title,
+        color: post.chartConfig.color,
+        data: post.chartConfig.data,
+        series: post.chartConfig.series
+      }
+    };
+    setJsonInput(JSON.stringify(jsonToDisplay, null, 2));
+    
+    setActiveTab('add');
+  };
+
+  const handleCancelEdit = () => {
+    resetForm();
   };
 
   const handleAddSubmit = async (e: React.FormEvent) => {
@@ -100,14 +140,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       config.color = selectedColor;
       config.title = title; // Override title from input
 
-      const success = await onAddPost(selectedTopic, description, config);
+      let success;
+      if (editingPostId) {
+        success = await onEditPost(editingPostId, selectedTopic, description, config);
+      } else {
+        success = await onAddPost(selectedTopic, description, config);
+      }
       
       if (success !== false) {
-          // Reset form
-          setTitle('');
-          setDescription('');
-          setJsonInput(DEFAULT_JSON_TEMPLATE);
-          alert('Gráfico adicionado com sucesso!');
+          alert(editingPostId ? 'Gráfico atualizado com sucesso!' : 'Gráfico adicionado com sucesso!');
+          resetForm();
           setActiveTab('list');
       }
     } catch (err: any) {
@@ -122,6 +164,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     // Explicitly confirm before deleting
     if (window.confirm('Tem certeza que deseja excluir este gráfico permanentemente?')) {
       onDeletePost(id);
+      if (editingPostId === id) {
+        resetForm(); // Se estava editando o post que excluiu, limpa o form
+      }
     }
   };
 
@@ -182,12 +227,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="h-6 w-px bg-slate-700 hidden md:block"></div>
             <div className="flex bg-slate-800 rounded-lg p-1 w-full md:w-auto">
               <button
-                onClick={() => setActiveTab('add')}
+                onClick={() => { setActiveTab('add'); if(!editingPostId) resetForm(); }}
                 className={`flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
                   activeTab === 'add' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
-                Adicionar
+                {editingPostId ? 'Editar Indicador' : 'Adicionar'}
               </button>
               <button
                 onClick={() => setActiveTab('list')}
@@ -214,10 +259,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         {/* Content */}
         <div className="flex-1 overflow-y-auto bg-[#0B1120] custom-scrollbar">
           
-          {/* TAB: ADD POST */}
+          {/* TAB: ADD / EDIT POST */}
           {activeTab === 'add' && (
             <form onSubmit={handleAddSubmit} className="p-6 max-w-3xl mx-auto space-y-8">
               
+              {/* Header de Edição */}
+              {editingPostId && (
+                <div className="bg-indigo-900/30 border border-indigo-500/30 p-4 rounded-xl flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Pencil className="text-indigo-400" />
+                    <div>
+                      <h3 className="text-white font-bold">Editando Indicador</h3>
+                      <p className="text-xs text-indigo-300">Você está alterando um registro existente.</p>
+                    </div>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={handleCancelEdit}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors border border-slate-700"
+                  >
+                    Cancelar Edição
+                  </button>
+                </div>
+              )}
+
               {/* Topic Selection */}
               <div className="space-y-3">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block ml-1">1. Área / Tópico</label>
@@ -322,10 +387,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className={`px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2 ${isSubmitting ? 'opacity-70 cursor-wait' : 'hover:-translate-y-1'}`}
+                  className={`px-8 py-4 ${editingPostId ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-emerald-600 hover:bg-emerald-500'} text-white rounded-xl font-bold shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2 ${isSubmitting ? 'opacity-70 cursor-wait' : 'hover:-translate-y-1'}`}
                 >
-                  <Plus size={20} />
-                  {isSubmitting ? 'Salvando...' : 'Publicar Indicador'}
+                  {editingPostId ? <RefreshCw size={20} /> : <Plus size={20} />}
+                  {isSubmitting ? 'Salvando...' : (editingPostId ? 'Salvar Alterações' : 'Publicar Indicador')}
                 </button>
               </div>
             </form>
@@ -381,13 +446,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               {new Date(post.createdAt).toLocaleDateString()}
                             </td>
                             <td className="p-4 text-right">
-                              <button
-                                type="button"
-                                onClick={(e) => handleDelete(e, post.id)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-900/20 text-red-400 hover:bg-red-600 hover:text-white rounded-lg text-sm font-medium transition-all border border-red-900/30 hover:border-red-500"
-                              >
-                                <Trash2 size={14} /> <span className="hidden sm:inline">Excluir</span>
-                              </button>
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditClick(post)}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-900/20 text-indigo-400 hover:bg-indigo-600 hover:text-white rounded-lg text-sm font-medium transition-all border border-indigo-900/30 hover:border-indigo-500"
+                                >
+                                  <Pencil size={14} /> <span className="hidden sm:inline">Editar</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDelete(e, post.id)}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-900/20 text-red-400 hover:bg-red-600 hover:text-white rounded-lg text-sm font-medium transition-all border border-red-900/30 hover:border-red-500"
+                                >
+                                  <Trash2 size={14} /> <span className="hidden sm:inline">Excluir</span>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
