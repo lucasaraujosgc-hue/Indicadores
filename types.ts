@@ -23,6 +23,19 @@ export interface ChartSeries {
   color?: string;
 }
 
+// Formato Novo (Series com 'values' e 'city')
+export interface NestedSeriesValue {
+  city?: string;
+  label?: string;
+  value: number;
+}
+
+export interface NestedSeriesData {
+  label: string; // Nome da série
+  values: NestedSeriesValue[];
+  color?: string;
+}
+
 // --- NOVOS TIPOS PARA O FORMATO COMPLEXO ---
 export interface ExternalSeriesData {
   label?: string; // Pode vir como label
@@ -52,8 +65,9 @@ export interface ChartConfig {
   
   // Data pode ser:
   // 1. Array simples (Flat)
-  // 2. Objeto complexo (ExternalChartData) com labels e series separados
-  data?: ChartDataPoint[] | ExternalChartData; 
+  // 2. Objeto complexo (ExternalChartData)
+  // 3. Array de NestedSeriesData (Novo formato com 'values')
+  data?: any[] | ExternalChartData; 
   
   series?: ChartSeries[]; // Legado
   color?: string;

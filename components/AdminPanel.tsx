@@ -144,7 +144,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         if(!finalTitle) throw new Error("Por favor, adicione um título ao gráfico (no campo acima ou no JSON).");
       }
 
-      // Validação Flexível (Suporta data[] simples, data object complexo, ou series[])
+      // Validação Flexível
       const hasDataArray = config.data && Array.isArray(config.data);
       const hasDataObject = config.data && !Array.isArray(config.data) && typeof config.data === 'object';
       const hasSeries = config.series && Array.isArray(config.series);
@@ -153,8 +153,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       if (!config.type) {
          throw new Error("O JSON deve conter a propriedade 'type'.");
       }
+      // Se não tiver dataArray, nem dataObject, nem series, falha.
       if (!hasDataArray && !hasDataObject && !hasSeries) {
         throw new Error("O JSON deve conter dados (propriedade 'data' ou 'series').");
+      }
+      
+      // Validação extra para formato aninhado (data array with values)
+      if (hasDataArray && config.data && config.data.length > 0 && 'values' in config.data[0] && !Array.isArray(config.data[0].values)) {
+         throw new Error("Formato inválido: 'values' deve ser um array.");
       }
 
       // Apply overrides
