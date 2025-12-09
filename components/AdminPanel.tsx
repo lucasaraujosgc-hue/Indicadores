@@ -41,7 +41,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onClose, 
   posts, 
   onAddPost, 
-  onEditPost,
+  onEditPost, 
   onDeletePost,
   usingServer
 }) => {
@@ -159,7 +159,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }
       
       // Validação extra para formato aninhado (data array with values)
-      if (hasDataArray && config.data && config.data.length > 0 && 'values' in config.data[0] && !Array.isArray(config.data[0].values)) {
+      if (Array.isArray(config.data) && config.data.length > 0 && 'values' in config.data[0] && !Array.isArray(config.data[0].values)) {
          throw new Error("Formato inválido: 'values' deve ser um array.");
       }
 
