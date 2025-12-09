@@ -128,9 +128,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       // Se o usuário não preencheu o título no input, tenta pegar do JSON novo (formato complexo)
       let finalTitle = title.trim();
-      if (!finalTitle && config.data && !Array.isArray(config.data) && (config.data as ExternalChartData).title) {
-         finalTitle = (config.data as ExternalChartData).title || "";
-         setTitle(finalTitle); // Atualiza o state
+      
+      // Verifica se data é um objeto (complexo) e se tem título lá dentro
+      if (!finalTitle && config.data && !Array.isArray(config.data) && typeof config.data === 'object') {
+         const dataObj = config.data as any;
+         if (dataObj.title) {
+            finalTitle = dataObj.title;
+            setTitle(finalTitle); // Atualiza o state
+         }
       }
 
       if (!finalTitle) {
@@ -144,8 +149,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       const hasDataObject = config.data && !Array.isArray(config.data) && typeof config.data === 'object';
       const hasSeries = config.series && Array.isArray(config.series);
 
-      if (!config.type || (!hasDataArray && !hasDataObject && !hasSeries)) {
-        throw new Error("O JSON deve conter 'type' e dados (campo 'data' ou 'series').");
+      // Relaxa a validação: Exige 'type' e alguma fonte de dados
+      if (!config.type) {
+         throw new Error("O JSON deve conter a propriedade 'type'.");
+      }
+      if (!hasDataArray && !hasDataObject && !hasSeries) {
+        throw new Error("O JSON deve conter dados (propriedade 'data' ou 'series').");
       }
 
       // Apply overrides
@@ -165,7 +174,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           setActiveTab('list');
       }
     } catch (err: any) {
-      setJsonError(err.message || "Erro ao processar JSON.");
+      console.error(err);
+      setJsonError(err.message || "Erro ao processar JSON. Verifique a sintaxe.");
     } finally {
         setIsSubmitting(false);
     }

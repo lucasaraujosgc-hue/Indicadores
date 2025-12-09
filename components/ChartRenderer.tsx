@@ -31,29 +31,40 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
     // CASO 0: Formato Complexo (ExternalChartData com labels e series separados)
     // Ex: { labels: ["A", "B"], series: [{ label: "S1", data: [1,2] }] }
     // Verifica se data existe, não é array e tem propriedades de objeto complexo ou series
-    if (config.data && !Array.isArray(config.data) && typeof config.data === 'object' && ('labels' in config.data || 'series' in config.data)) {
-      const extData = config.data as ExternalChartData;
-      const labels = extData.labels || [];
-      const series = extData.series || [];
+    if (config.data && !Array.isArray(config.data) && typeof config.data === 'object') {
+      const extData = config.data as any; // Cast para any para verificação segura
       
-      // "Costura" os dados: cria um array de objetos onde cada objeto tem a label e os valores das series
-      const normalized = labels.map((label, index) => {
-        const item: any = { label };
-        series.forEach(s => {
-          // Usa o índice para pegar o dado correspondente
-          // Suporta s.name OU s.label como chave
-          const key = s.name || s.label || `series_${index}`;
-          item[key] = s.data[index] !== undefined ? s.data[index] : null;
+      if ('labels' in extData || 'series' in extData) {
+        const labels = Array.isArray(extData.labels) ? extData.labels : [];
+        const series = Array.isArray(extData.series) ? extData.series : [];
+        
+        // "Costura" os dados: cria um array de objetos onde cada objeto tem a label e os valores das series
+        const normalized = labels.map((label: string, index: number) => {
+          const item: any = { label };
+          series.forEach((s: any, sIndex: number) => {
+            if (!s) return;
+            // Usa o índice para pegar o dado correspondente
+            // Suporta s.name OU s.label como chave
+            const key = s.name || s.label || `series_${sIndex}`;
+            
+            // Verificação de segurança para array de dados
+            const val = (Array.isArray(s.data) && s.data[index] !== undefined) ? s.data[index] : null;
+            item[key] = val;
+          });
+          return item;
         });
-        return item;
-      });
 
-      return {
-        processedData: normalized,
-        dataKeys: series.map(s => s.name || s.label || 'unknown'),
-        isComplex: true,
-        complexConfig: extData
-      };
+        const keys = series
+          .filter((s: any) => s) // Filtra séries nulas
+          .map((s: any) => s.name || s.label || 'unknown');
+
+        return {
+          processedData: normalized,
+          dataKeys: keys,
+          isComplex: true,
+          complexConfig: extData as ExternalChartData
+        };
+      }
     }
 
     // CASO 1: Formato "Series" (Antigo)
@@ -103,7 +114,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
 
   const renderChart = () => {
     // Se for o formato complexo, usamos ComposedChart para permitir mistura de barras e linhas
-    if (isComplex && complexConfig) {
+    if (isComplex && complexConfig && complexConfig.series) {
       return (
         <ComposedChart data={processedData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
           <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
@@ -148,6 +159,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
           <Legend wrapperStyle={{ paddingTop: '10px' }} />
 
           {complexConfig.series.map((serie, index) => {
+            if (!serie) return null; // Skip invalid series
+            
             const serieColor = serie.color || COLORS[index % COLORS.length];
             const yAxisId = serie.yAxis === 'right' ? 'right' : 'left';
             const dataKey = serie.name || serie.label || `series_${index}`;
@@ -238,7 +251,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
               dataKey={pieDataKey}
               nameKey="label"
             >
-              {processedData.map((entry, index) => (
+              {processedData.map((entry: any, index: number) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.2)" />
               ))}
             </Pie>
