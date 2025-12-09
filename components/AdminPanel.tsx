@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
-import { X, Trash2, Plus, Lock, Palette, Check, Database, Type, Wifi, WifiOff, Pencil, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Trash2, Plus, Lock, Palette, Check, Database, Type, Wifi, WifiOff, Pencil, RefreshCw, BarChart3, LineChart, PieChart, Code, Eye, Table } from 'lucide-react';
 import { ChartConfig, Post, TopicId, ExternalChartData } from '../types';
 import { TOPICS } from '../constants';
+import { ChartRenderer } from './ChartRenderer';
 
 interface AdminPanelProps {
   isOpen: boolean;
@@ -51,7 +52,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Form States
   const [activeTab, setActiveTab] = useState<'add' | 'list'>('add');
-  const [editingPostId, setEditingPostId] = useState<string | null>(null); // Se null, modo criar. Se string, modo editar.
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
   
   const [selectedTopic, setSelectedTopic] = useState<TopicId>(TopicId.SAUDE);
   const [title, setTitle] = useState('');
@@ -60,6 +61,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [selectedColor, setSelectedColor] = useState('#0ea5e9');
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // --- VISUAL BUILDER STATES ---
+  const [editMode, setEditMode] = useState<'visual' | 'code'>('visual');
+  const [builderType, setBuilderType] = useState<'bar' | 'line' | 'pie'>('bar');
+  // Series definition: initially one series named 'value'
+  const [builderSeries, setBuilderSeries] = useState<string[]>(['Valor']); 
+  // Rows: Array of objects { label: string, [seriesName]: number }
+  const [builderRows, setBuilderRows] = useState<any[]>([
+    { label: 'Item A', 'Valor': 10 },
+    { label: 'Item B', 'Valor': 20 },
+    { label: 'Item C', 'Valor': 15 },
+  ]);
 
   if (!isOpen) return null;
 
@@ -81,7 +94,79 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setSelectedColor('#0ea5e9');
     setSelectedTopic(TopicId.SAUDE);
     setJsonError(null);
+    
+    // Reset Visual Builder
+    setEditMode('visual');
+    setBuilderType('bar');
+    setBuilderSeries(['Valor']);
+    setBuilderRows([
+      { label: 'Item A', 'Valor': 10 },
+      { label: 'Item B', 'Valor': 20 },
+      { label: 'Item C', 'Valor': 15 },
+    ]);
   };
+
+  // --- VISUAL BUILDER LOGIC ---
+
+  // Sync Visual Builder -> JSON Input
+  useEffect(() => {
+    if (editMode === 'visual') {
+      const config = {
+        type: builderType,
+        title: title || "Título do Gráfico",
+        color: selectedColor, // Sync color
+        data: builderRows.map(row => {
+          const cleanRow: any = { label: row.label };
+          builderSeries.forEach(s => {
+            cleanRow[s] = Number(row[s]) || 0;
+          });
+          return cleanRow;
+        })
+      };
+      
+      // Wrap in { chart: ... } standard
+      const finalJson = { chart: config };
+      setJsonInput(JSON.stringify(finalJson, null, 2));
+    }
+  }, [builderRows, builderSeries, builderType, title, selectedColor, editMode]);
+
+  const addRow = () => {
+    const newRow: any = { label: 'Novo Item' };
+    builderSeries.forEach(s => newRow[s] = 0);
+    setBuilderRows([...builderRows, newRow]);
+  };
+
+  const removeRow = (index: number) => {
+    const newRows = [...builderRows];
+    newRows.splice(index, 1);
+    setBuilderRows(newRows);
+  };
+
+  const updateRow = (index: number, field: string, value: any) => {
+    const newRows = [...builderRows];
+    newRows[index][field] = value;
+    setBuilderRows(newRows);
+  };
+
+  const addSeries = () => {
+    const name = prompt("Nome da nova série (ex: 2025):");
+    if (name && !builderSeries.includes(name)) {
+      setBuilderSeries([...builderSeries, name]);
+      // Add default 0 for this series to all rows
+      const newRows = builderRows.map(r => ({ ...r, [name]: 0 }));
+      setBuilderRows(newRows);
+    }
+  };
+
+  const removeSeries = (seriesName: string) => {
+    if (builderSeries.length <= 1) {
+      alert("É necessário ter pelo menos uma série de dados.");
+      return;
+    }
+    setBuilderSeries(builderSeries.filter(s => s !== seriesName));
+  };
+
+  // --- END VISUAL BUILDER LOGIC ---
 
   const handleEditClick = (post: Post) => {
     setEditingPostId(post.id);
@@ -90,7 +175,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setDescription(post.description);
     setSelectedColor(post.chartConfig.color || '#0ea5e9');
     
-    // Reconstrói o JSON para o usuário editar, mantendo a estrutura original
+    // Set JSON Input
     const jsonToDisplay = {
       chart: {
         type: post.chartConfig.type,
@@ -102,6 +187,37 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }
     };
     setJsonInput(JSON.stringify(jsonToDisplay, null, 2));
+
+    // Try to populate Visual Builder from existing data (Best Effort)
+    try {
+      if (post.chartConfig.type === 'bar' || post.chartConfig.type === 'line' || post.chartConfig.type === 'pie') {
+        setBuilderType(post.chartConfig.type);
+        
+        // Simple Flat Data Check
+        if (Array.isArray(post.chartConfig.data)) {
+           const data = post.chartConfig.data as any[];
+           if (data.length > 0) {
+             const firstItem = data[0];
+             // Extract keys that are not 'label'
+             const keys = Object.keys(firstItem).filter(k => k !== 'label' && k !== 'city');
+             if (keys.length > 0) {
+               setBuilderSeries(keys);
+               setBuilderRows(data);
+               setEditMode('visual'); // Switch to visual mode if parsing successful
+             } else {
+               setEditMode('code'); // Fallback to code if structure is weird
+             }
+           }
+        } else {
+           setEditMode('code'); // Complex data -> Code mode
+        }
+      } else {
+        setEditMode('code');
+      }
+    } catch (e) {
+      console.warn("Could not auto-populate visual builder", e);
+      setEditMode('code');
+    }
     
     setActiveTab('add');
   };
@@ -119,51 +235,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       let parsed = JSON.parse(jsonInput);
       let config: ChartConfig;
 
-      // Smart parsing logic: se tiver wrapper "chart", usa o conteúdo.
       if (parsed.chart) {
         config = parsed.chart;
       } else {
         config = parsed;
       }
 
-      // Se o usuário não preencheu o título no input, tenta pegar do JSON novo (formato complexo)
       let finalTitle = title.trim();
       
-      // Verifica se data é um objeto (complexo) e se tem título lá dentro
       if (!finalTitle && config.data && !Array.isArray(config.data) && typeof config.data === 'object') {
          const dataObj = config.data as any;
          if (dataObj.title) {
             finalTitle = dataObj.title;
-            setTitle(finalTitle); // Atualiza o state
+            setTitle(finalTitle);
          }
       }
 
       if (!finalTitle) {
-        // Se ainda assim não tiver título, tenta pegar do config.title padrão ou lança erro
         finalTitle = config.title || "";
-        if(!finalTitle) throw new Error("Por favor, adicione um título ao gráfico (no campo acima ou no JSON).");
+        if(!finalTitle) throw new Error("Por favor, adicione um título ao gráfico.");
       }
 
-      // Validação Flexível
+      // Basic Validation
       const hasDataArray = config.data && Array.isArray(config.data);
       const hasDataObject = config.data && !Array.isArray(config.data) && typeof config.data === 'object';
       const hasSeries = config.series && Array.isArray(config.series);
 
-      // Relaxa a validação: Exige 'type' e alguma fonte de dados
-      if (!config.type) {
-         throw new Error("O JSON deve conter a propriedade 'type'.");
-      }
-      // Se não tiver dataArray, nem dataObject, nem series, falha.
-      if (!hasDataArray && !hasDataObject && !hasSeries) {
-        throw new Error("O JSON deve conter dados (propriedade 'data' ou 'series').");
-      }
+      if (!config.type) throw new Error("O JSON deve conter a propriedade 'type'.");
+      if (!hasDataArray && !hasDataObject && !hasSeries) throw new Error("O JSON deve conter dados (propriedade 'data' ou 'series').");
       
-      // Validação extra para formato aninhado (data array with values)
       if (Array.isArray(config.data) && config.data.length > 0 && 'values' in config.data[0] && !Array.isArray(config.data[0].values)) {
          throw new Error("Formato inválido: 'values' deve ser um array.");
       }
 
-      // Apply overrides
       config.color = selectedColor;
       config.title = finalTitle; 
 
@@ -196,6 +300,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }
     }
   };
+
+  // Preview Config Helper
+  const getPreviewConfig = (): ChartConfig | null => {
+    try {
+      const parsed = JSON.parse(jsonInput);
+      const config = parsed.chart ? parsed.chart : parsed;
+      // Force current color for preview
+      return { ...config, color: selectedColor, title: title || config.title }; 
+    } catch {
+      return null;
+    }
+  };
+
+  const previewConfig = getPreviewConfig();
 
   // --- Auth View ---
   if (!isAuthenticated) {
@@ -275,7 +393,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <div className="flex items-center gap-4 w-full md:w-auto justify-end">
             <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border ${usingServer ? 'bg-blue-900/30 text-blue-400 border-blue-800' : 'bg-amber-900/30 text-amber-400 border-amber-800'}`}>
                {usingServer ? <Wifi size={14} /> : <WifiOff size={14} />}
-               {usingServer ? 'CONECTADO AO SERVIDOR' : 'MODO OFFLINE (LOCAL)'}
+               {usingServer ? 'CONECTADO AO SERVIDOR' : 'OFFLINE'}
             </div>
             <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
               <X size={24} />
@@ -288,7 +406,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           
           {/* TAB: ADD / EDIT POST */}
           {activeTab === 'add' && (
-            <form onSubmit={handleAddSubmit} className="p-6 max-w-3xl mx-auto space-y-8">
+            <div className="p-6 max-w-4xl mx-auto space-y-6">
               
               {/* Header de Edição */}
               {editingPostId && (
@@ -310,29 +428,45 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               )}
 
-              {/* Topic Selection */}
-              <div className="space-y-3">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block ml-1">1. Área / Tópico</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {TOPICS.map(topic => (
-                    <button
-                      key={topic.id}
-                      type="button"
-                      onClick={() => setSelectedTopic(topic.id)}
-                      className={`p-3 text-sm rounded-xl border text-left transition-all flex items-center gap-2 ${
-                        selectedTopic === topic.id 
-                          ? `border-emerald-500 bg-emerald-900/20 text-emerald-400 ring-1 ring-emerald-500` 
-                          : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:bg-slate-800'
-                      }`}
-                    >
-                      <div className={`w-2 h-2 rounded-full ${topic.color}`}></div>
-                      {topic.label}
-                    </button>
-                  ))}
+              {/* Basic Fields */}
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block ml-1">1. Área / Tópico</label>
+                  <select
+                    value={selectedTopic}
+                    onChange={(e) => setSelectedTopic(e.target.value as TopicId)}
+                    className="w-full p-3 bg-slate-800 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                  >
+                    {TOPICS.map(topic => (
+                      <option key={topic.id} value={topic.id}>{topic.label}</option>
+                    ))}
+                  </select>
                 </div>
+                
+                 <div className="space-y-3">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block ml-1 flex items-center gap-2">
+                      <Palette size={14} /> Cor Principal
+                    </label>
+                    <div className="flex gap-2">
+                       {PRESET_COLORS.slice(0, 5).map(color => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setSelectedColor(color)}
+                          className={`w-8 h-8 rounded-lg ${selectedColor === color ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'}`}
+                          style={{ backgroundColor: color }}
+                        />
+                       ))}
+                       <input 
+                        type="color" 
+                        value={selectedColor}
+                        onChange={(e) => setSelectedColor(e.target.value)}
+                        className="w-8 h-8 rounded overflow-hidden cursor-pointer"
+                      />
+                    </div>
+                  </div>
               </div>
 
-               {/* Title */}
                <div className="space-y-3">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block ml-1 flex items-center gap-2">
                   <Type size={14} /> 2. Título do Indicador
@@ -342,76 +476,202 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full p-4 bg-slate-800 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none placeholder-slate-500 transition-all"
-                  placeholder="Se deixar vazio, tentaremos usar o título do JSON"
+                  placeholder="Ex: Casos de Dengue em 2025"
                 />
               </div>
 
-              {/* Description */}
               <div className="space-y-3">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block ml-1">3. Descrição e Análise</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block ml-1">3. Descrição</label>
                 <textarea
                   required
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full p-4 bg-slate-800 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none placeholder-slate-500 transition-all min-h-[100px]"
-                  rows={3}
-                  placeholder="Descreva o contexto, a fonte dos dados e a análise dos resultados..."
+                  className="w-full p-4 bg-slate-800 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none placeholder-slate-500 transition-all min-h-[80px]"
+                  rows={2}
+                  placeholder="Contexto e análise dos dados..."
                 />
               </div>
 
-              {/* Color Picker */}
-              <div className="space-y-3">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block ml-1 flex items-center gap-2">
-                  <Palette size={14} /> 4. Cor do Gráfico (Opcional)
-                </label>
-                <div className="flex flex-wrap items-center gap-3 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
-                  {PRESET_COLORS.map(color => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setSelectedColor(color)}
-                      className={`w-8 h-8 rounded-full transition-transform hover:scale-110 flex items-center justify-center ${
-                        selectedColor === color ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : ''
-                      }`}
-                      style={{ backgroundColor: color }}
-                    >
-                      {selectedColor === color && <Check size={14} className="text-white drop-shadow-md" />}
-                    </button>
-                  ))}
-                  <div className="h-6 w-px bg-slate-700 mx-2"></div>
-                  <input 
-                    type="color" 
-                    value={selectedColor}
-                    onChange={(e) => setSelectedColor(e.target.value)}
-                    className="h-9 w-9 p-0 border-0 rounded-lg overflow-hidden cursor-pointer bg-transparent"
-                    title="Cor Personalizada"
-                  />
-                </div>
+              <hr className="border-slate-800" />
+
+              {/* DATA EDITOR SECTION */}
+              <div className="space-y-4">
+                 <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block ml-1 flex items-center gap-2">
+                      <Database size={14} /> 4. Dados do Gráfico
+                    </label>
+                    
+                    {/* Toggle Mode */}
+                    <div className="flex bg-slate-800 p-1 rounded-lg border border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => setEditMode('visual')}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold transition-all ${editMode === 'visual' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                      >
+                        <Table size={14} /> Construtor Visual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditMode('code')}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold transition-all ${editMode === 'code' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                      >
+                        <Code size={14} /> Editor JSON
+                      </button>
+                    </div>
+                 </div>
+
+                 {/* VISUAL BUILDER */}
+                 {editMode === 'visual' && (
+                   <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 space-y-6">
+                      
+                      {/* Chart Type Selector */}
+                      <div className="flex gap-4 items-center">
+                         <span className="text-xs text-slate-400 font-bold uppercase">Tipo:</span>
+                         <div className="flex gap-2">
+                           {[
+                             { id: 'bar', label: 'Barras', icon: BarChart3 },
+                             { id: 'line', label: 'Linha', icon: LineChart },
+                             { id: 'pie', label: 'Pizza', icon: PieChart },
+                           ].map(t => (
+                             <button
+                               key={t.id}
+                               type="button"
+                               onClick={() => setBuilderType(t.id as any)}
+                               className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${builderType === t.id ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}
+                             >
+                               <t.icon size={16} /> {t.label}
+                             </button>
+                           ))}
+                         </div>
+                      </div>
+
+                      {/* Columns Manager */}
+                      <div className="flex flex-wrap gap-2 items-center p-3 bg-slate-900 rounded-lg border border-slate-800">
+                         <span className="text-xs text-slate-400 font-bold uppercase mr-2">Séries de Dados:</span>
+                         {builderSeries.map(series => (
+                           <div key={series} className="flex items-center gap-1 bg-slate-800 text-slate-200 px-2 py-1 rounded text-xs border border-slate-700">
+                             {series}
+                             {builderSeries.length > 1 && (
+                               <button type="button" onClick={() => removeSeries(series)} className="text-slate-500 hover:text-red-400 ml-1"><X size={12}/></button>
+                             )}
+                           </div>
+                         ))}
+                         <button 
+                            type="button" 
+                            onClick={addSeries} 
+                            className="text-emerald-400 text-xs hover:underline flex items-center gap-1 ml-2"
+                         >
+                           <Plus size={12} /> Adicionar Coluna
+                         </button>
+                      </div>
+
+                      {/* Data Table */}
+                      <div className="overflow-x-auto rounded-lg border border-slate-700">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-slate-900 text-slate-400 uppercase text-xs font-bold">
+                            <tr>
+                              <th className="p-3 border-b border-slate-700 w-1/3">Rótulo (Eixo X)</th>
+                              {builderSeries.map(s => (
+                                <th key={s} className="p-3 border-b border-slate-700">{s}</th>
+                              ))}
+                              <th className="p-3 border-b border-slate-700 w-10"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-700">
+                             {builderRows.map((row, idx) => (
+                               <tr key={idx} className="bg-slate-800/30 hover:bg-slate-800">
+                                 <td className="p-2">
+                                   <input 
+                                    type="text" 
+                                    value={row.label} 
+                                    onChange={(e) => updateRow(idx, 'label', e.target.value)}
+                                    className="w-full bg-transparent border-b border-transparent focus:border-emerald-500 outline-none text-white px-1"
+                                    placeholder="Ex: Janeiro"
+                                   />
+                                 </td>
+                                 {builderSeries.map(s => (
+                                   <td key={s} className="p-2">
+                                     <input 
+                                      type="number" 
+                                      value={row[s]} 
+                                      onChange={(e) => updateRow(idx, s, e.target.value)}
+                                      className="w-full bg-transparent border-b border-transparent focus:border-emerald-500 outline-none text-emerald-300 font-mono px-1"
+                                     />
+                                   </td>
+                                 ))}
+                                 <td className="p-2 text-center">
+                                    <button type="button" onClick={() => removeRow(idx)} className="text-slate-600 hover:text-red-400 transition-colors">
+                                      <Trash2 size={14} />
+                                    </button>
+                                 </td>
+                               </tr>
+                             ))}
+                          </tbody>
+                        </table>
+                        <button 
+                          type="button" 
+                          onClick={addRow}
+                          className="w-full py-2 text-center text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition-colors border-t border-slate-700"
+                        >
+                          + Adicionar Linha
+                        </button>
+                      </div>
+
+                      {/* Live Preview */}
+                      <div className="mt-4 border-t border-slate-700 pt-4">
+                         <h4 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                           <Eye size={14} /> Pré-visualização em Tempo Real
+                         </h4>
+                         <div className="h-64 bg-[#0f172a] rounded-lg border border-slate-700 p-4">
+                            {previewConfig ? (
+                              <ChartRenderer config={previewConfig} />
+                            ) : (
+                              <div className="flex items-center justify-center h-full text-slate-500 text-xs">Preencha os dados acima</div>
+                            )}
+                         </div>
+                      </div>
+                   </div>
+                 )}
+
+                 {/* CODE EDITOR */}
+                 {editMode === 'code' && (
+                   <div className="relative">
+                      <textarea
+                        required
+                        value={jsonInput}
+                        onChange={(e) => setJsonInput(e.target.value)}
+                        className="w-full p-4 font-mono text-sm bg-slate-950 text-emerald-400 border border-slate-700 rounded-xl h-64 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        spellCheck={false}
+                      />
+                      <div className="absolute top-2 right-2 text-[10px] text-slate-600 font-mono pointer-events-none">JSON</div>
+                      
+                      {/* Preview for Code Mode */}
+                      <div className="mt-4 border-t border-slate-700 pt-4">
+                         <h4 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                           <Eye size={14} /> Pré-visualização
+                         </h4>
+                         <div className="h-64 bg-[#0f172a] rounded-lg border border-slate-700 p-4">
+                            {previewConfig ? (
+                              <ChartRenderer config={previewConfig} />
+                            ) : (
+                              <div className="flex items-center justify-center h-full text-slate-500 text-xs">JSON Inválido</div>
+                            )}
+                         </div>
+                      </div>
+                   </div>
+                 )}
+                 
+                 {jsonError && (
+                    <div className="mt-2 text-red-400 text-sm bg-red-900/20 border border-red-900/50 p-3 rounded-lg">
+                      {jsonError}
+                    </div>
+                 )}
               </div>
 
-              {/* JSON Editor */}
-              <div className="space-y-3">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block ml-1">5. Dados (JSON)</label>
-                <div className="relative">
-                  <textarea
-                    required
-                    value={jsonInput}
-                    onChange={(e) => setJsonInput(e.target.value)}
-                    className="w-full p-4 font-mono text-sm bg-slate-950 text-emerald-400 border border-slate-700 rounded-xl h-48 focus:ring-2 focus:ring-emerald-500 outline-none"
-                    spellCheck={false}
-                  />
-                  <div className="absolute top-2 right-2 text-[10px] text-slate-600 font-mono pointer-events-none">JSON</div>
-                </div>
-                {jsonError && (
-                  <div className="mt-2 text-red-400 text-sm bg-red-900/20 border border-red-900/50 p-3 rounded-lg">
-                    {jsonError}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end pt-4 pb-12">
+              <div className="flex justify-end pt-4 pb-12 border-t border-slate-800">
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={handleAddSubmit}
                   disabled={isSubmitting}
                   className={`px-8 py-4 ${editingPostId ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-emerald-600 hover:bg-emerald-500'} text-white rounded-xl font-bold shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2 ${isSubmitting ? 'opacity-70 cursor-wait' : 'hover:-translate-y-1'}`}
                 >
@@ -419,7 +679,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   {isSubmitting ? 'Salvando...' : (editingPostId ? 'Salvar Alterações' : 'Publicar Indicador')}
                 </button>
               </div>
-            </form>
+            </div>
           )}
 
           {/* TAB: LIST / DELETE */}
