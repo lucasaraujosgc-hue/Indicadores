@@ -25,7 +25,8 @@ export interface ChartSeries {
 
 // --- NOVOS TIPOS PARA O FORMATO COMPLEXO ---
 export interface ExternalSeriesData {
-  label: string;
+  label?: string; // Pode vir como label
+  name?: string;  // Pode vir como name
   data: number[];
   type?: 'bar' | 'line';
   yAxis?: 'left' | 'right';

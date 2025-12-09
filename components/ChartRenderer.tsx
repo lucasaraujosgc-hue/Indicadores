@@ -30,23 +30,27 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
   const { processedData, dataKeys, isComplex, complexConfig } = useMemo(() => {
     // CASO 0: Formato Complexo (ExternalChartData com labels e series separados)
     // Ex: { labels: ["A", "B"], series: [{ label: "S1", data: [1,2] }] }
-    if (config.data && !Array.isArray(config.data) && 'labels' in config.data && 'series' in config.data) {
+    // Verifica se data existe, não é array e tem propriedades de objeto complexo ou series
+    if (config.data && !Array.isArray(config.data) && typeof config.data === 'object' && ('labels' in config.data || 'series' in config.data)) {
       const extData = config.data as ExternalChartData;
       const labels = extData.labels || [];
+      const series = extData.series || [];
       
       // "Costura" os dados: cria um array de objetos onde cada objeto tem a label e os valores das series
       const normalized = labels.map((label, index) => {
         const item: any = { label };
-        extData.series.forEach(s => {
+        series.forEach(s => {
           // Usa o índice para pegar o dado correspondente
-          item[s.label] = s.data[index] !== undefined ? s.data[index] : null;
+          // Suporta s.name OU s.label como chave
+          const key = s.name || s.label || `series_${index}`;
+          item[key] = s.data[index] !== undefined ? s.data[index] : null;
         });
         return item;
       });
 
       return {
         processedData: normalized,
-        dataKeys: extData.series.map(s => s.label),
+        dataKeys: series.map(s => s.name || s.label || 'unknown'),
         isComplex: true,
         complexConfig: extData
       };
@@ -146,13 +150,15 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
           {complexConfig.series.map((serie, index) => {
             const serieColor = serie.color || COLORS[index % COLORS.length];
             const yAxisId = serie.yAxis === 'right' ? 'right' : 'left';
+            const dataKey = serie.name || serie.label || `series_${index}`;
             
             if (serie.type === 'line') {
               return (
                 <Line
-                  key={serie.label}
+                  key={dataKey}
                   type="monotone"
-                  dataKey={serie.label}
+                  dataKey={dataKey}
+                  name={dataKey}
                   stroke={serieColor}
                   strokeWidth={3}
                   yAxisId={yAxisId}
@@ -163,8 +169,9 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
             } else {
               return (
                 <Bar
-                  key={serie.label}
-                  dataKey={serie.label}
+                  key={dataKey}
+                  dataKey={dataKey}
+                  name={dataKey}
                   fill={serieColor}
                   yAxisId={yAxisId}
                   radius={[4, 4, 0, 0]}
