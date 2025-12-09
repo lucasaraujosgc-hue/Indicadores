@@ -15,9 +15,10 @@ interface AdminPanelProps {
 const DEFAULT_JSON_TEMPLATE = `{
   "chart": {
     "type": "bar",
+    "title": "Comparativo Dengue 2025",
     "data": [
-      { "label": "Item A", "value": 10 },
-      { "label": "Item B", "value": 20 }
+      { "label": "Jan", "sgc": 10, "bahia": 35 },
+      { "label": "Fev", "sgc": 20, "bahia": 45 }
     ]
   }
 }`;
@@ -87,8 +88,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         config = parsed;
       }
 
-      if (!config.type || !config.data || !Array.isArray(config.data)) {
-        throw new Error("O JSON deve conter 'type' e uma lista 'data'.");
+      // Validação Flexível (Suporta data[] ou series[])
+      const hasData = config.data && Array.isArray(config.data);
+      const hasSeries = config.series && Array.isArray(config.series);
+
+      if (!config.type || (!hasData && !hasSeries)) {
+        throw new Error("O JSON deve conter 'type' e dados (campo 'data' ou 'series').");
       }
 
       // Apply overrides
@@ -246,7 +251,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full p-4 bg-slate-800 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none placeholder-slate-500 transition-all"
-                  placeholder="Ex: Casos de Dengue - 1º Semestre 2025"
+                  placeholder="Ex: Comparativo Dengue: SGC vs Bahia"
                 />
               </div>
 
@@ -266,7 +271,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               {/* Color Picker */}
               <div className="space-y-3">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block ml-1 flex items-center gap-2">
-                  <Palette size={14} /> 4. Cor do Gráfico
+                  <Palette size={14} /> 4. Cor do Gráfico (Opcional)
                 </label>
                 <div className="flex flex-wrap items-center gap-3 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                   {PRESET_COLORS.map(color => (

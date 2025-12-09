@@ -9,15 +9,24 @@ export enum TopicId {
   PLANEJAMENTO = 'planejamento',
 }
 
+// Permitir qualquer chave (ex: "bahia", "sgc", "value")
 export interface ChartDataPoint {
   label: string;
-  value: number;
+  [key: string]: string | number;
+}
+
+export interface ChartSeries {
+  name: string;
+  data: { label: string; value: number }[];
+  color?: string;
 }
 
 export interface ChartConfig {
   type: 'bar' | 'line' | 'pie';
   title: string;
-  data: ChartDataPoint[];
+  // Suporta formato direto (Flat) ou formato aninhado (Series)
+  data?: ChartDataPoint[]; 
+  series?: ChartSeries[];
   color?: string;
 }
 
