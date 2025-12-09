@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import {
   BarChart,
@@ -12,25 +13,48 @@ import {
   Line,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  ComposedChart
 } from 'recharts';
-import { ChartConfig } from '../types';
+import { ChartConfig, ExternalChartData } from '../types';
 
 interface ChartRendererProps {
   config: ChartConfig;
 }
 
-const COLORS = ['#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+const COLORS = ['#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1'];
 
 export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
   const { type, color: mainColor } = config;
 
-  // Lógica para Normalizar os Dados (Suportar tanto 'data' flat quanto 'series' aninhado)
-  const { processedData, dataKeys } = useMemo(() => {
-    // CASO 1: Formato "Series" (Exemplo 1 do usuário)
+  const { processedData, dataKeys, isComplex, complexConfig } = useMemo(() => {
+    // CASO 0: Formato Complexo (ExternalChartData com labels e series separados)
+    // Ex: { labels: ["A", "B"], series: [{ label: "S1", data: [1,2] }] }
+    if (config.data && !Array.isArray(config.data) && 'labels' in config.data && 'series' in config.data) {
+      const extData = config.data as ExternalChartData;
+      const labels = extData.labels || [];
+      
+      // "Costura" os dados: cria um array de objetos onde cada objeto tem a label e os valores das series
+      const normalized = labels.map((label, index) => {
+        const item: any = { label };
+        extData.series.forEach(s => {
+          // Usa o índice para pegar o dado correspondente
+          item[s.label] = s.data[index] !== undefined ? s.data[index] : null;
+        });
+        return item;
+      });
+
+      return {
+        processedData: normalized,
+        dataKeys: extData.series.map(s => s.label),
+        isComplex: true,
+        complexConfig: extData
+      };
+    }
+
+    // CASO 1: Formato "Series" (Antigo)
     if (config.series && Array.isArray(config.series)) {
       const allLabels = new Set<string>();
-      // Coleta todas as labels possíveis
       config.series.forEach(s => s.data.forEach(d => allLabels.add(d.label)));
       
       const normalized = Array.from(allLabels).map(label => {
@@ -44,30 +68,116 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
         return item;
       });
 
-      // Ordenar por mês se possível (lógica simples, pode ser melhorada)
+      // Tenta ordenar cronologicamente se forem meses
       const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-      normalized.sort((a, b) => months.indexOf(a.label) - months.indexOf(b.label));
+      // Verifica se alguma label é um mês
+      const hasMonth = normalized.some(n => months.includes(n.label));
+      if (hasMonth) {
+        normalized.sort((a, b) => months.indexOf(a.label) - months.indexOf(b.label));
+      }
 
       return {
         processedData: normalized,
-        dataKeys: config.series.map(s => s.name)
+        dataKeys: config.series.map(s => s.name),
+        isComplex: false
       };
     }
 
-    // CASO 2: Formato "Flat" (Exemplo 2 do usuário ou o padrão antigo)
+    // CASO 2: Formato "Flat" (Simples) - data: [{label: 'A', val: 10}]
     if (config.data && Array.isArray(config.data) && config.data.length > 0) {
-      // Descobre as chaves dinamicamente (ex: "sgc", "bahia", ou apenas "value")
+      // Descobre as chaves dinamicamente
       const keys = Object.keys(config.data[0]).filter(k => k !== 'label');
       return {
         processedData: config.data,
-        dataKeys: keys
+        dataKeys: keys,
+        isComplex: false
       };
     }
 
-    return { processedData: [], dataKeys: [] };
+    return { processedData: [], dataKeys: [], isComplex: false };
   }, [config]);
 
   const renderChart = () => {
+    // Se for o formato complexo, usamos ComposedChart para permitir mistura de barras e linhas
+    if (isComplex && complexConfig) {
+      return (
+        <ComposedChart data={processedData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+          <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
+          <XAxis 
+            dataKey="label" 
+            scale="point" 
+            padding={{ left: 10, right: 10 }} 
+            stroke="#94a3b8" 
+            fontSize={11} 
+            tickLine={false} 
+          />
+          
+          {/* Eixo Y Esquerdo (Padrão) */}
+          <YAxis 
+            yAxisId="left"
+            orientation="left"
+            stroke="#94a3b8" 
+            fontSize={11} 
+            tickLine={false}
+            label={complexConfig.yAxes?.left?.title ? { value: complexConfig.yAxes.left.title, angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 } : undefined}
+          />
+          
+          {/* Eixo Y Direito (Opcional) */}
+          <YAxis 
+            yAxisId="right" 
+            orientation="right" 
+            stroke="#94a3b8" 
+            fontSize={11} 
+            tickLine={false}
+            hide={!complexConfig.yAxes?.right} // Esconde se não tiver config
+            label={complexConfig.yAxes?.right?.title ? { value: complexConfig.yAxes.right.title, angle: 90, position: 'insideRight', fill: '#94a3b8', fontSize: 10 } : undefined}
+          />
+
+          <Tooltip 
+            contentStyle={{ 
+              backgroundColor: '#1e293b', 
+              borderRadius: '8px', 
+              border: '1px solid #334155', 
+              color: '#f8fafc' 
+            }}
+          />
+          <Legend wrapperStyle={{ paddingTop: '10px' }} />
+
+          {complexConfig.series.map((serie, index) => {
+            const serieColor = serie.color || COLORS[index % COLORS.length];
+            const yAxisId = serie.yAxis === 'right' ? 'right' : 'left';
+            
+            if (serie.type === 'line') {
+              return (
+                <Line
+                  key={serie.label}
+                  type="monotone"
+                  dataKey={serie.label}
+                  stroke={serieColor}
+                  strokeWidth={3}
+                  yAxisId={yAxisId}
+                  dot={{ r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+              );
+            } else {
+              return (
+                <Bar
+                  key={serie.label}
+                  dataKey={serie.label}
+                  fill={serieColor}
+                  yAxisId={yAxisId}
+                  radius={[4, 4, 0, 0]}
+                  barSize={40}
+                />
+              );
+            }
+          })}
+        </ComposedChart>
+      );
+    }
+
+    // Renderização Padrão para formatos simples
     switch (type) {
       case 'line':
         return (
@@ -80,8 +190,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
                 backgroundColor: '#1e293b', 
                 borderRadius: '8px', 
                 border: '1px solid #334155', 
-                color: '#f8fafc',
-                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.5)' 
+                color: '#f8fafc'
               }}
               itemStyle={{ color: '#e2e8f0' }}
             />
@@ -91,7 +200,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
                 key={key} 
                 type="monotone" 
                 dataKey={key} 
-                name={key === 'value' ? 'Valor' : key} // Se for só value, mostra Valor, senão o nome da chave
+                name={key === 'value' ? 'Valor' : key}
                 stroke={COLORS[index % COLORS.length]} 
                 strokeWidth={3}
                 activeDot={{ r: 6 }} 
@@ -100,7 +209,6 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
           </LineChart>
         );
       case 'pie':
-        // Pie chart geralmente espera apenas um valor. Pegamos o primeiro dataKey.
         const pieDataKey = dataKeys[0] || 'value';
         return (
           <PieChart>
@@ -151,8 +259,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
                 backgroundColor: '#1e293b', 
                 borderRadius: '8px', 
                 border: '1px solid #334155', 
-                color: '#f8fafc',
-                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.5)' 
+                color: '#f8fafc' 
               }}
               itemStyle={{ color: '#e2e8f0' }}
             />

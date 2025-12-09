@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { X, Trash2, Plus, Lock, Palette, Check, Database, Type, Wifi, WifiOff, Pencil, RefreshCw } from 'lucide-react';
-import { ChartConfig, Post, TopicId } from '../types';
+import { ChartConfig, Post, TopicId, ExternalChartData } from '../types';
 import { TOPICS } from '../constants';
 
 interface AdminPanelProps {
@@ -16,10 +17,10 @@ interface AdminPanelProps {
 const DEFAULT_JSON_TEMPLATE = `{
   "chart": {
     "type": "bar",
-    "title": "Comparativo Dengue 2025",
+    "title": "Novo Gráfico",
     "data": [
-      { "label": "Jan", "sgc": 10, "bahia": 35 },
-      { "label": "Fev", "sgc": 20, "bahia": 45 }
+      { "label": "Janeiro", "value": 10 },
+      { "label": "Fevereiro", "value": 20 }
     ]
   }
 }`;
@@ -89,14 +90,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setDescription(post.description);
     setSelectedColor(post.chartConfig.color || '#0ea5e9');
     
-    // Reconstrói o JSON para o usuário editar, mantendo a estrutura
+    // Reconstrói o JSON para o usuário editar, mantendo a estrutura original
     const jsonToDisplay = {
       chart: {
         type: post.chartConfig.type,
         title: post.chartConfig.title,
         color: post.chartConfig.color,
         data: post.chartConfig.data,
-        series: post.chartConfig.series
+        series: post.chartConfig.series,
+        options: post.chartConfig.options
       }
     };
     setJsonInput(JSON.stringify(jsonToDisplay, null, 2));
@@ -114,31 +116,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setIsSubmitting(true);
 
     try {
-      if (!title.trim()) {
-        throw new Error("Por favor, adicione um título ao gráfico.");
-      }
-
       let parsed = JSON.parse(jsonInput);
       let config: ChartConfig;
 
-      // Smart parsing logic
+      // Smart parsing logic: se tiver wrapper "chart", usa o conteúdo.
       if (parsed.chart) {
         config = parsed.chart;
       } else {
         config = parsed;
       }
 
-      // Validação Flexível (Suporta data[] ou series[])
-      const hasData = config.data && Array.isArray(config.data);
+      // Se o usuário não preencheu o título no input, tenta pegar do JSON novo (formato complexo)
+      let finalTitle = title.trim();
+      if (!finalTitle && config.data && !Array.isArray(config.data) && (config.data as ExternalChartData).title) {
+         finalTitle = (config.data as ExternalChartData).title || "";
+         setTitle(finalTitle); // Atualiza o state
+      }
+
+      if (!finalTitle) {
+        // Se ainda assim não tiver título, tenta pegar do config.title padrão ou lança erro
+        finalTitle = config.title || "";
+        if(!finalTitle) throw new Error("Por favor, adicione um título ao gráfico (no campo acima ou no JSON).");
+      }
+
+      // Validação Flexível (Suporta data[] simples, data object complexo, ou series[])
+      const hasDataArray = config.data && Array.isArray(config.data);
+      const hasDataObject = config.data && !Array.isArray(config.data) && typeof config.data === 'object';
       const hasSeries = config.series && Array.isArray(config.series);
 
-      if (!config.type || (!hasData && !hasSeries)) {
+      if (!config.type || (!hasDataArray && !hasDataObject && !hasSeries)) {
         throw new Error("O JSON deve conter 'type' e dados (campo 'data' ou 'series').");
       }
 
       // Apply overrides
       config.color = selectedColor;
-      config.title = title; // Override title from input
+      config.title = finalTitle; 
 
       let success;
       if (editingPostId) {
@@ -160,12 +172,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Impede eventos indesejados
-    // Explicitly confirm before deleting
+    e.stopPropagation();
     if (window.confirm('Tem certeza que deseja excluir este gráfico permanentemente?')) {
       onDeletePost(id);
       if (editingPostId === id) {
-        resetForm(); // Se estava editando o post que excluiu, limpa o form
+        resetForm();
       }
     }
   };
@@ -312,11 +323,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </label>
                 <input
                   type="text"
-                  required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full p-4 bg-slate-800 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none placeholder-slate-500 transition-all"
-                  placeholder="Ex: Comparativo Dengue: SGC vs Bahia"
+                  placeholder="Se deixar vazio, tentaremos usar o título do JSON"
                 />
               </div>
 

@@ -1,3 +1,4 @@
+
 export enum TopicId {
   SAUDE = 'saude',
   EDUCACAO = 'educacao',
@@ -9,25 +10,53 @@ export enum TopicId {
   PLANEJAMENTO = 'planejamento',
 }
 
-// Permitir qualquer chave (ex: "bahia", "sgc", "value")
+// Formato Simples (Flat)
 export interface ChartDataPoint {
   label: string;
   [key: string]: string | number;
 }
 
+// Formato Antigo (Series Aninhadas)
 export interface ChartSeries {
   name: string;
   data: { label: string; value: number }[];
   color?: string;
 }
 
+// --- NOVOS TIPOS PARA O FORMATO COMPLEXO ---
+export interface ExternalSeriesData {
+  label: string;
+  data: number[];
+  type?: 'bar' | 'line';
+  yAxis?: 'left' | 'right';
+  color?: string;
+}
+
+export interface ExternalYAxesConfig {
+  left?: { title?: string; format?: string };
+  right?: { title?: string; format?: string };
+}
+
+export interface ExternalChartData {
+  title?: string;
+  labels: string[];
+  series: ExternalSeriesData[];
+  yAxes?: ExternalYAxesConfig;
+}
+// ------------------------------------------
+
 export interface ChartConfig {
   type: 'bar' | 'line' | 'pie';
   title: string;
-  // Suporta formato direto (Flat) ou formato aninhado (Series)
-  data?: ChartDataPoint[]; 
-  series?: ChartSeries[];
+  
+  // Data pode ser:
+  // 1. Array simples (Flat)
+  // 2. Objeto complexo (ExternalChartData) com labels e series separados
+  data?: ChartDataPoint[] | ExternalChartData; 
+  
+  series?: ChartSeries[]; // Legado
   color?: string;
+  options?: any; // Para configurações extras
 }
 
 export interface Post {
