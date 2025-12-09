@@ -67,7 +67,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [builderType, setBuilderType] = useState<'bar' | 'line' | 'pie'>('bar');
   // Series definition: initially one series named 'value'
   const [builderSeries, setBuilderSeries] = useState<string[]>(['Valor']); 
-  // Rows: Array of objects { label: string, [seriesName]: number }
+  // Rows: Array of objects { label: string, color?: string, [seriesName]: number }
   const [builderRows, setBuilderRows] = useState<any[]>([
     { label: 'Item A', 'Valor': 10 },
     { label: 'Item B', 'Valor': 20 },
@@ -83,9 +83,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       const config = {
         type: builderType,
         title: title || "Título do Gráfico",
-        color: selectedColor, // Sync color
+        color: selectedColor, // Global Chart Color
         data: builderRows.map(row => {
           const cleanRow: any = { label: row.label };
+          if (row.color) {
+            cleanRow.color = row.color; // Per-row color
+          }
           builderSeries.forEach(s => {
             cleanRow[s] = Number(row[s]) || 0;
           });
@@ -104,7 +107,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === 'Azul') {
+    // Alterado de 'Azul' para 'azul' conforme solicitado
+    if (passwordInput === 'azul') {
       setIsAuthenticated(true);
       setAuthError(false);
     } else {
@@ -199,7 +203,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
            if (data.length > 0) {
              const firstItem = data[0];
              // Extract keys that are not 'label'
-             const keys = Object.keys(firstItem).filter(k => k !== 'label' && k !== 'city');
+             const keys = Object.keys(firstItem).filter(k => k !== 'label' && k !== 'city' && k !== 'color');
              if (keys.length > 0) {
                setBuilderSeries(keys);
                setBuilderRows(data);
@@ -445,7 +449,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 
                  <div className="space-y-3">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block ml-1 flex items-center gap-2">
-                      <Palette size={14} /> Cor Principal
+                      <Palette size={14} /> Cor Principal (Padrão)
                     </label>
                     <div className="flex gap-2">
                        {PRESET_COLORS.slice(0, 5).map(color => (
@@ -571,6 +575,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <thead className="bg-slate-900 text-slate-400 uppercase text-xs font-bold">
                             <tr>
                               <th className="p-3 border-b border-slate-700 w-1/3">Rótulo (Eixo X)</th>
+                              <th className="p-3 border-b border-slate-700 w-24 text-center">Cor</th>
                               {builderSeries.map(s => (
                                 <th key={s} className="p-3 border-b border-slate-700">{s}</th>
                               ))}
@@ -588,6 +593,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                     className="w-full bg-transparent border-b border-transparent focus:border-emerald-500 outline-none text-white px-1"
                                     placeholder="Ex: Janeiro"
                                    />
+                                 </td>
+                                 <td className="p-2 flex justify-center">
+                                    <input 
+                                      type="color" 
+                                      value={row.color || selectedColor} 
+                                      onChange={(e) => updateRow(idx, 'color', e.target.value)}
+                                      className="w-6 h-6 rounded cursor-pointer border-none p-0"
+                                      title="Cor individual deste item"
+                                    />
                                  </td>
                                  {builderSeries.map(s => (
                                    <td key={s} className="p-2">

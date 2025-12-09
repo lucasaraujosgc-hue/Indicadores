@@ -142,7 +142,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
         const first = config.data[0];
         if (!('values' in first) && !('series' in first)) {
            // Descobre as chaves dinamicamente
-          const keys = Object.keys(first).filter(k => k !== 'label' && k !== 'city');
+          const keys = Object.keys(first).filter(k => k !== 'label' && k !== 'city' && k !== 'color');
           
           // Se usar 'city' em vez de 'label' no root object
           const normalized = config.data.map((item: any) => ({
@@ -315,7 +315,11 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
               nameKey="label"
             >
               {processedData.map((entry: any, index: number) => (
-                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.2)" />
+                <Cell 
+                  key={`cell-${index}`} 
+                  fill={entry.color || COLORS[index % COLORS.length]} // Usa cor individual se existir
+                  stroke="rgba(0,0,0,0.2)" 
+                />
               ))}
             </Pie>
             <Tooltip 
@@ -354,7 +358,15 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
                 name={key === 'value' ? 'Quantidade' : key} 
                 fill={dataKeys.length === 1 && mainColor ? mainColor : COLORS[index % COLORS.length]} 
                 radius={[4, 4, 0, 0]} 
-              />
+              >
+                {/* Mapeamento de células para cores individuais */}
+                {processedData.map((entry: any, i: number) => (
+                  <Cell 
+                    key={`cell-${i}`} 
+                    fill={entry.color || (dataKeys.length === 1 && mainColor ? mainColor : COLORS[index % COLORS.length])} 
+                  />
+                ))}
+              </Bar>
             ))}
           </BarChart>
         );
