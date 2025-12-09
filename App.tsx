@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, LayoutDashboard, Lock, MessageCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, Lock, MessageCircle, AlertCircle, Maximize2, X } from 'lucide-react';
 import { TOPICS } from './constants';
 import { Post, TopicId, ChartConfig } from './types';
 import { TopicCard } from './components/TopicCard';
@@ -29,7 +28,7 @@ function App() {
       setError(null);
     } catch (err) {
       console.error("Erro ao carregar posts:", err);
-      // Fallback silencioso ou mensagem de erro amigável se o backend não estiver rodando (dev mode frontend only)
+      // Fallback silencioso ou mensagem de erro amigável
       setError("Não foi possível conectar ao banco de dados. Verifique se o servidor está rodando.");
     } finally {
       setIsLoading(false);
@@ -206,6 +205,8 @@ const DashboardView = ({ isLoading }: { isLoading: boolean }) => {
   );
 };
 
+// --- Topic Detail View with Modal ---
+
 interface TopicDetailViewProps {
   posts: Post[];
   isLoading: boolean;
@@ -213,6 +214,7 @@ interface TopicDetailViewProps {
 
 const TopicDetailView: React.FC<TopicDetailViewProps> = ({ posts, isLoading }) => {
   const { topicId } = useParams<{ topicId: string }>();
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   
   const topic = TOPICS.find(t => t.id === topicId);
   const topicPosts = posts.filter(p => p.topicId === topicId).sort((a, b) => b.createdAt - a.createdAt);
@@ -230,7 +232,7 @@ const TopicDetailView: React.FC<TopicDetailViewProps> = ({ posts, isLoading }) =
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       {/* Header */}
       <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -254,7 +256,7 @@ const TopicDetailView: React.FC<TopicDetailViewProps> = ({ posts, isLoading }) =
            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div>
         </div>
       ) : (
-        <div className="space-y-8">
+        <>
           {topicPosts.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-300">
               <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
@@ -266,26 +268,90 @@ const TopicDetailView: React.FC<TopicDetailViewProps> = ({ posts, isLoading }) =
               </p>
             </div>
           ) : (
-            topicPosts.map((post) => (
-              <div key={post.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow duration-300">
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="text-sm text-gray-400">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {topicPosts.map((post) => (
+                <div key={post.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-300 flex flex-col h-full">
+                  
+                  {/* Card Header with Title */}
+                  <div className="p-6 border-b border-gray-50 bg-gray-50/50">
+                    <div className="flex justify-between items-start mb-2">
+                       <h3 className="text-lg font-bold text-slate-800 line-clamp-2 pr-4">{post.chartConfig.title}</h3>
+                       <button 
+                          onClick={() => setSelectedPost(post)}
+                          className="text-gray-400 hover:text-blue-600 transition-colors"
+                          title="Expandir"
+                       >
+                         <Maximize2 size={18} />
+                       </button>
+                    </div>
+                    <div className="text-xs text-gray-400">
                       Publicado em {formatDate(post.createdAt)}
                     </div>
                   </div>
-                  
-                  <p className="text-gray-700 mb-6 text-lg leading-relaxed">
-                    {post.description}
-                  </p>
-                  
-                  <div className="bg-slate-50 rounded-xl p-4 md:p-6 border border-slate-100">
-                    <ChartRenderer config={post.chartConfig} />
+
+                  {/* Card Body */}
+                  <div className="p-6 flex-1 flex flex-col">
+                    <p className="text-gray-600 text-sm mb-6 line-clamp-3">
+                      {post.description}
+                    </p>
+                    
+                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 h-64 mt-auto">
+                      <ChartRenderer config={post.chartConfig} />
+                    </div>
                   </div>
+                  
+                  {/* Card Footer */}
+                   <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-50 flex justify-center">
+                      <button 
+                        onClick={() => setSelectedPost(post)}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        Ver Detalhes Completos
+                      </button>
+                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Post Detail Modal */}
+      {selectedPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4 backdrop-blur-sm" onClick={() => setSelectedPost(null)}>
+          <div 
+            className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in fade-in zoom-in duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <div>
+                <span className="text-xs font-bold uppercase text-gray-500 tracking-wider">Detalhes do Indicador</span>
+                <h2 className="text-2xl font-bold text-gray-800 leading-tight mt-1">{selectedPost.chartConfig.title}</h2>
+              </div>
+              <button onClick={() => setSelectedPost(null)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="overflow-y-auto p-6 md:p-8">
+              <div className="flex flex-col gap-6">
+                <div className="bg-slate-50 rounded-xl p-6 border border-slate-100 h-[400px] md:h-[500px]">
+                  <ChartRenderer config={selectedPost.chartConfig} />
+                </div>
+                
+                <div className="prose max-w-none">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">Análise</h3>
+                  <p className="text-gray-700 whitespace-pre-line text-lg leading-relaxed">
+                    {selectedPost.description}
+                  </p>
+                </div>
+
+                <div className="text-sm text-gray-400 pt-4 border-t border-gray-100">
+                  ID do Registro: {selectedPost.id} • Data: {formatDate(selectedPost.createdAt)}
                 </div>
               </div>
-            ))
-          )}
+            </div>
+          </div>
         </div>
       )}
     </div>

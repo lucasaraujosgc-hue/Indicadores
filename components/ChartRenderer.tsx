@@ -23,7 +23,7 @@ interface ChartRendererProps {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'];
 
 export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
-  const { type, data, title, color } = config;
+  const { type, data, color } = config;
 
   const renderChart = () => {
     switch (type) {
@@ -83,13 +83,10 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
   };
 
   return (
-    <div className="w-full h-80 bg-white p-4 rounded-lg border border-gray-100 flex flex-col">
-      <h3 className="text-center font-semibold text-gray-800 mb-4">{title}</h3>
-      <div className="flex-1 w-full min-h-0">
-        <ResponsiveContainer width="100%" height="100%">
-          {renderChart()}
-        </ResponsiveContainer>
-      </div>
+    <div className="w-full h-full min-h-[300px]">
+      <ResponsiveContainer width="100%" height="100%">
+        {renderChart()}
+      </ResponsiveContainer>
     </div>
   );
 };

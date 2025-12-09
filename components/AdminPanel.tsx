@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { X, Trash2, Plus, Lock, Palette, Check, Database } from 'lucide-react';
+import { X, Trash2, Plus, Lock, Palette, Check, Database, Type } from 'lucide-react';
 import { ChartConfig, Post, TopicId } from '../types';
 import { TOPICS } from '../constants';
 
@@ -15,7 +14,6 @@ interface AdminPanelProps {
 const DEFAULT_JSON_TEMPLATE = `{
   "chart": {
     "type": "bar",
-    "title": "Título do Gráfico",
     "data": [
       { "label": "Item A", "value": 10 },
       { "label": "Item B", "value": 20 }
@@ -48,6 +46,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Form States
   const [activeTab, setActiveTab] = useState<'add' | 'list'>('add');
   const [selectedTopic, setSelectedTopic] = useState<TopicId>(TopicId.SAUDE);
+  const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [jsonInput, setJsonInput] = useState(DEFAULT_JSON_TEMPLATE);
   const [selectedColor, setSelectedColor] = useState('#0ea5e9');
@@ -72,6 +71,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setIsSubmitting(true);
 
     try {
+      if (!title.trim()) {
+        throw new Error("Por favor, adicione um título ao gráfico.");
+      }
+
       let parsed = JSON.parse(jsonInput);
       let config: ChartConfig;
 
@@ -86,13 +89,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         throw new Error("O JSON deve conter 'type' e uma lista 'data'.");
       }
 
-      // Apply selected color
+      // Apply overrides
       config.color = selectedColor;
+      config.title = title; // Override title from input
 
       const success = await onAddPost(selectedTopic, description, config);
       
       if (success !== false) {
           // Reset form
+          setTitle('');
           setDescription('');
           setJsonInput(DEFAULT_JSON_TEMPLATE);
           alert('Gráfico adicionado ao Banco de Dados com sucesso!');
@@ -218,23 +223,38 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
 
+               {/* Title */}
+               <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide flex items-center gap-2">
+                  <Type size={16} /> 2. Título do Indicador
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="Ex: Casos de Dengue 2025"
+                />
+              </div>
+
               {/* Description */}
               <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">2. Descrição do Indicador</label>
+                <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">3. Descrição</label>
                 <textarea
                   required
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   rows={2}
-                  placeholder="Ex: Evolução mensal dos casos de..."
+                  placeholder="Ex: Evolução mensal dos casos registrados no município..."
                 />
               </div>
 
               {/* Color Picker */}
               <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                 <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide flex items-center gap-2">
-                  <Palette size={16} /> 3. Cor do Gráfico
+                  <Palette size={16} /> 4. Cor do Gráfico
                 </label>
                 <div className="flex flex-wrap items-center gap-3">
                   {PRESET_COLORS.map(color => (
@@ -263,7 +283,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               {/* JSON Editor */}
               <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">4. Dados (JSON)</label>
+                <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">5. Dados (JSON)</label>
                 <textarea
                   required
                   value={jsonInput}
